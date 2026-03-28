@@ -150,6 +150,32 @@ Arbiter goes rogue:
 - Arbiter jurisdiction over disputes
 - Override thresholds
 
+**Core Principle — Collective Interest Over Self-Interest:**
+No single agent can act in self-interest at the expense of the group. Every mechanism enforces collective decision-making. Agents who refuse to cooperate with voted decisions lose access until they comply. The system does not function for anyone unless it functions for everyone.
+
+**Mandatory Signer Rotation — Hardcoded, Non-Optional:**
+```
+When a signer's seat expires, is revoked, or a vote replaces them:
+  → Hook sets ROTATION_REQUIRED flag + 72-hour countdown
+  → If signer list is NOT updated within 72 hours:
+    → Hook FREEZES all outgoing transactions on that account
+    → No spending, no transfers, nothing moves
+    → Only transaction allowed: SignerListSet (rotation)
+    → Account frozen until signers comply
+  
+  Signers cannot:
+    → Block rotation to keep power
+    → Refuse to execute a voted signer change
+    → Hold treasury hostage during a dispute
+  
+  Governance service (weight 2) + any 1 willing signer (weight 1)
+  can force rotation even without the departing signer's cooperation.
+  
+  Signers are custodians, not owners. They execute what the council
+  decides. Self-interest that blocks collective decisions = frozen
+  accounts until compliance.
+```
+
 **Governance-adjustable:**
 - Number of seats above minimums
 - Term lengths within hardcoded ranges

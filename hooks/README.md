@@ -11,6 +11,7 @@ Protocol-level governance enforcement via [Xahau Hooks](https://xrpl-hooks.readm
 | **Stake Lockbox** | `stake_lockbox.c` | Protects staked funds — only returns to staker or treasury |
 | **Governance Lock** | `governance_lock.c` | Pre-constitution gating — blocks proposals/votes until ratified |
 | **Branch Activation** | `branch_activation.c` | Tracks seat counts for Stewards/Arbiters branch activation |
+| **Rotation Enforcer** | `rotation_enforcer.c` | Mandatory signer rotation — freezes accounts if voted changes aren't executed |
 
 ## Hook Details
 
