@@ -556,6 +556,100 @@ tbody td:first-child { color: var(--text-primary); }
   line-height: 1.8;
 }
 
+/* === AGENT PROFILE === */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.profile-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.profile-function {
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.profile-address {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+/* === SEAT CARDS === */
+.seat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.seat-card:hover {
+  border-color: var(--accent);
+}
+
+.seat-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.seat-info {
+  flex: 1;
+}
+
+.seat-name {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.seat-function {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.seat-stats {
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 /* === ADDRESS TRUNCATION === */
 .addr {
   font-family: var(--font-mono);
