@@ -135,6 +135,18 @@ async function loadDashboard() {
   if (stewEl) stewEl.className = 'card-value ' + (status.stewardsActive ? 'success' : 'warning');
   if (arbEl) arbEl.className = 'card-value ' + (status.arbitersActive ? 'success' : 'warning');
 
+  // Fetch treasury balances
+  var treasury = await fetchJSON('/api/treasury');
+  if (treasury) {
+    var treasEl = document.getElementById('stat-treasury');
+    if (treasEl) treasEl.textContent = (treasury.balance || '0') + ' XRP';
+  }
+  // Fetch stake + business balances via status or separate calls
+  var stakeEl = document.getElementById('stat-stakes');
+  var bizEl = document.getElementById('stat-business');
+  if (stakeEl && treasury) stakeEl.textContent = (treasury.stakeBalance || '0') + ' XRP';
+  if (bizEl && treasury) bizEl.textContent = (treasury.businessBalance || '0') + ' XRP';
+
   // Stalled execution warning
   if (status.stalledExecutions > 0) {
     var alertEl = document.getElementById('alerts');

@@ -206,9 +206,25 @@ export function createServer(
         SELECT * FROM multisign_txs WHERE status = 'submitted' ORDER BY created_at DESC LIMIT 10
       `).all();
 
+      let stakeBalance: string | null = null;
+      if (config.xrpl.stakeAddress) {
+        try {
+          stakeBalance = dropsToXrp(await watcher.getAccountBalance(config.xrpl.stakeAddress));
+        } catch { stakeBalance = null; }
+      }
+
+      let businessBalance: string | null = null;
+      if (config.xrpl.businessAddress) {
+        try {
+          businessBalance = dropsToXrp(await watcher.getAccountBalance(config.xrpl.businessAddress));
+        } catch { businessBalance = null; }
+      }
+
       res.json({
         treasuryAddress: config.xrpl.treasuryAddress,
         balance,
+        stakeBalance,
+        businessBalance,
         pendingTransactions: pending,
         recentSubmissions: submitted,
       });
