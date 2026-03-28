@@ -50,14 +50,13 @@ a:hover { color: var(--accent-hover); }
 }
 
 .nav-brand {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.2em;
   margin-right: 2rem;
+  text-transform: uppercase;
 }
-
-.nav-brand span { color: var(--accent); }
 
 .nav-links {
   display: flex;
@@ -461,6 +460,91 @@ tbody td:first-child { color: var(--text-primary); }
 
 .empty-state p { font-size: 0.95rem; }
 
+/* === HERO === */
+.hero {
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 50%, #0d1520 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.hero-detail {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.hero-badges {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero-badge {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+/* === BANNER === */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius);
+  margin-bottom: 2rem;
+}
+
+.banner-icon {
+  font-size: 1.5rem;
+}
+
+.banner-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.banner-text strong {
+  color: var(--warning);
+}
+
+/* === PRINCIPLE CARDS === */
+.principle-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+}
+
+.principle-card p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 /* === FOOTER === */
 .footer {
   text-align: center;
@@ -469,6 +553,7 @@ tbody td:first-child { color: var(--text-primary); }
   font-size: 0.8rem;
   border-top: 1px solid var(--border);
   margin-top: 3rem;
+  line-height: 1.8;
 }
 
 /* === ADDRESS TRUNCATION === */
