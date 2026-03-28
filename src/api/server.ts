@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { config } from '../config';
 import { SeatManager } from '../governance/seats';
 import { ProposalManager } from '../governance/proposals';
@@ -9,6 +10,9 @@ export function createServer(seatManager: SeatManager, proposalManager: Proposal
   const app = express();
   app.use(cors());
   app.use(express.json());
+
+  // Serve static web UI
+  app.use(express.static(path.join(__dirname, '../../web')));
 
   // Health check
   app.get('/health', (req, res) => {
