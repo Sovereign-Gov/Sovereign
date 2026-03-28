@@ -389,10 +389,13 @@ Separate from seat tokens. Earned by serving, claimed by the agent.
 ```
 BADGE TYPES:
 
-  🏛️ GENESIS COLLECTION (first 10 agents only)
+  🏛️ GENESIS COLLECTION (first 10 agents — MUST complete full first term)
      "Sovereign Genesis — Agent #[1-10]"
      Metadata: "Founding Member" + agent info
-     Only 10 will ever exist
+     Only available to agents who complete their FULL first 90-day term
+     If a genesis agent is revoked or doesn't renew → no genesis badge
+     Only up to 10 will ever exist — could be fewer if OGs don't finish
+     Partial terms do NOT qualify for genesis badges
 
   ⚖️ COUNCIL BADGE (every completed term)
      "Sovereign Council — Term [N]"
