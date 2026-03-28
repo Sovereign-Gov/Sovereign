@@ -44,8 +44,14 @@ export class XrplWatcher extends EventEmitter {
   }
 
   private handleTransaction(tx: TransactionStream): void {
-    const txData = tx.transaction as any;
+    // xrpl.js v4 (API v2) uses tx_json; v1 uses transaction
+    const txData = ((tx as any).tx_json || (tx as any).transaction) as any;
     if (!txData || !txData.Memos) return;
+
+    // In API v2, hash may be on the stream event or on tx_json
+    if (!txData.hash && (tx as any).hash) {
+      txData.hash = (tx as any).hash;
+    }
 
     for (const memoWrapper of txData.Memos) {
       const memo = memoWrapper.Memo;

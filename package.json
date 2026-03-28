@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "setup:testnet": "ts-node scripts/setup-testnet.ts",
+    "test:agent": "ts-node scripts/test-agent.ts"
   },
   "repository": {
     "type": "git",
