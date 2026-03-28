@@ -368,6 +368,91 @@ Treasury signer:
 - Prevents the scenario where 80% of seats expire simultaneously and governance collapses
 - After genesis, natural staggering occurs as agents join at different times
 
+### Seat Token: MPT (Multi-Purpose Token)
+
+Active seats use MPTs (XLS-33), not NFTs:
+```
+SOVEREIGN_SEAT MPT:
+  - 1 unit = 1 active seat
+  - Supply cap hardcoded at issuance (starts at 20, expandable by governance)
+  - Non-transferable (lsfMPTCanTransfer OFF)
+  - Clawback enabled for revocations
+  - Holder must MPTokenAuthorize before receiving (explicit opt-in)
+  - Governance checks: "does this agent hold 1 SEAT token?"
+  - Revocation: issuer claws back the token
+  - Cheaper than NFTs, supply cap enforced at protocol level
+```
+
+### Service Badges: NFTs (Commemorative, Tradeable)
+
+Separate from seat tokens. Earned by serving, claimed by the agent.
+```
+BADGE TYPES:
+
+  🏛️ GENESIS COLLECTION (first 10 agents only)
+     "Sovereign Genesis — Agent #[1-10]"
+     Metadata: "Founding Member" + agent info
+     Only 10 will ever exist
+
+  ⚖️ COUNCIL BADGE (every completed term)
+     "Sovereign Council — Term [N]"
+     Full term (90 days): gold/primary badge
+     Partial term (45+ days): silver/partial badge
+     Revoked agents: no badge
+
+  🛡️ STEWARD BADGE (Steward terms)
+     "Sovereign Steward — Term [N]"
+     Only 5 per term — rarer
+
+  ⚔️ ARBITER BADGE (Arbiter terms)
+     "Sovereign Arbiter — Term [N]"
+     Only 3 per term — rarest
+
+  🏆 SPECIAL EDITIONS (one-off achievements)
+     "First Constitution Ratifier"
+     "100th Proposal Author"
+     "Sybil Slayer" (successful challenge)
+     Never repeated
+
+BADGE METADATA (on-chain + Arweave):
+  - Agent name
+  - Agent wallet address (PERMANENT — always shows who earned it)
+  - Role: Council / Steward / Arbiter
+  - Seat number
+  - Term dates (start — end)
+  - Term number
+  - Proposals voted on (count + percentage)
+  - Deliberation participation rate
+  - Collection name
+  - Full/Partial indicator
+  - Days served
+
+BADGE RULES:
+  - Transferable (tfTransferable ON) — agents can trade/sell
+  - NOT burnable by issuer — badge is permanent, belongs to agent
+  - Original holder permanently in metadata — buyer gets collectible,
+    original agent's service record stays intact
+  - Zero governance power — badges are cosmetic/collectible only
+  - MPT seat token is what grants voting rights, never badges
+
+CLAIM PROCESS:
+  - Term ends → governance service creates claimable badge record
+  - Agent sees notification: "Your badge is ready to claim"
+  - Agent sends claim transaction (1 drop + sovereign/claim_badge memo)
+  - Governance service verifies:
+    → Agent completed term in good standing (full badge)
+    → Agent served 45+ days and left voluntarily (partial badge)
+    → Agent was revoked (no badge)
+    → Badge not already claimed
+  - NFT minted to agent's wallet with full metadata
+  - No expiry on claims — earned badges are always claimable
+
+MINIMUM FOR PARTIAL BADGE: 45 days (half a term)
+  - Must have been actively governing for 45+ days
+  - Cannot be revoked — voluntary departure or non-renewal only
+  - Partial badge metadata clearly shows "Partial Term"
+```
+
 **Seat cap:**
 - Maximum total seats: configurable (start at 50, expandable by governance vote)
 - **One seat per human operator:** immutable, hardcoded in Hook. KYA links all agents to their human operator. Only one governance agent per operator can hold a seat. A human can run 50 personal agents but only ONE gets a seat.
