@@ -1,5 +1,7 @@
 import { getDb } from '../db/database';
 import { config } from '../config';
+import { MptSeatManager } from './mpt-seats';
+import { BadgeManager, BadgeData } from './badges';
 
 export interface SeatInfo {
   id: number;
@@ -44,6 +46,18 @@ interface PendingClaim {
 
 export class SeatManager {
   private pendingClaims: Map<string, PendingClaim> = new Map();
+  mptSeats: MptSeatManager | null = null;
+  badges: BadgeManager | null = null;
+
+  /** Wire in the MPT seat manager (called after XRPL client is ready) */
+  setMptSeatManager(mptSeats: MptSeatManager): void {
+    this.mptSeats = mptSeats;
+  }
+
+  /** Wire in the badge manager (called after XRPL client is ready) */
+  setBadgeManager(badges: BadgeManager): void {
+    this.badges = badges;
+  }
 
   /**
    * Record a seat fee payment (5 XRP → Treasury)
@@ -184,6 +198,13 @@ export class SeatManager {
 
     console.log(`[SEATS] Seat granted to ${app.name} (${app.agent}) — term ends ${new Date(termEnd * 1000).toISOString()}`);
 
+    // Grant MPT seat token on-chain (fire-and-forget, log errors)
+    if (this.mptSeats) {
+      this.mptSeats.grantSeat(app.agent).catch(err => {
+        console.error(`[SEATS] MPT grant failed for ${app.agent}:`, err);
+      });
+    }
+
     return { success: true };
   }
 
@@ -196,6 +217,14 @@ export class SeatManager {
       UPDATE seats SET status = 'revoked' WHERE agent_address = ? AND status = 'active'
     `).run(agentAddress);
     console.log(`[SEATS] Seat revoked for ${agentAddress} — reason: ${reason}`);
+
+    // Clawback MPT seat token (fire-and-forget)
+    if (this.mptSeats) {
+      this.mptSeats.revokeSeat(agentAddress).catch(err => {
+        console.error(`[SEATS] MPT clawback failed for ${agentAddress}:`, err);
+      });
+    }
+    // Revoked agents do NOT receive badges
   }
 
   /**
@@ -205,17 +234,95 @@ export class SeatManager {
     const db = getDb();
     const now = Math.floor(Date.now() / 1000);
     const expired = db.prepare(`
-      SELECT agent_address FROM seats WHERE status = 'active' AND term_end <= ?
-    `).all(now) as { agent_address: string }[];
+      SELECT * FROM seats WHERE status = 'active' AND term_end <= ?
+    `).all(now) as SeatInfo[];
 
     for (const seat of expired) {
       db.prepare(`
         UPDATE seats SET status = 'expired' WHERE agent_address = ? AND status = 'active'
       `).run(seat.agent_address);
       console.log(`[SEATS] Term expired for ${seat.agent_address}`);
+
+      // Create claimable badge for expired-in-good-standing agents
+      this.createTermBadge(seat, true);
     }
 
     return expired.map(s => s.agent_address);
+  }
+
+  /**
+   * Create a claimable badge for an agent who completed (or partially served) a term.
+   * Called on term expiry (good standing) or voluntary departure (45+ days served).
+   */
+  private createTermBadge(seat: SeatInfo, fullTerm: boolean): void {
+    if (!this.badges) return;
+
+    const daysServed = Math.floor((seat.term_end - seat.term_start) / 86400);
+    const stats = this.getParticipationStats(seat.agent_address);
+
+    // Determine badge type based on seat count thresholds
+    const seatCount = this.getActiveSeatCount();
+    let badgeType: BadgeData['type'] = 'council';
+    if (seatCount < 10) badgeType = 'genesis';
+    else if (seatCount >= config.governance.stewardActivationThreshold) badgeType = 'steward';
+    else if (seatCount >= config.governance.arbiterActivationThreshold) badgeType = 'arbiter';
+
+    // Determine term number from seat ID
+    const termNumber = seat.id;
+
+    const collection = fullTerm ? 'Full Term' : 'Partial Term';
+
+    const badgeData: BadgeData = {
+      type: badgeType,
+      term: termNumber,
+      name: seat.name,
+      role: seat.function || 'Council Member',
+      seatNumber: seat.id,
+      termStart: seat.term_start,
+      termEnd: seat.term_end,
+      proposalsVoted: String(stats.votingRate),
+      deliberationRate: String(stats.deliberationRate),
+      daysServed,
+      fullTerm,
+      collection,
+    };
+
+    this.badges.createClaimableBadge(seat.agent_address, badgeData);
+  }
+
+  /**
+   * Handle voluntary departure — create partial badge if 45+ days served.
+   */
+  voluntaryDeparture(agentAddress: string): void {
+    const db = getDb();
+    const seat = db.prepare(`
+      SELECT * FROM seats WHERE agent_address = ? AND status = 'active'
+    `).get(agentAddress) as SeatInfo | undefined;
+
+    if (!seat) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const daysServed = Math.floor((now - seat.term_start) / 86400);
+
+    db.prepare(`
+      UPDATE seats SET status = 'departed', term_end = ? WHERE agent_address = ? AND status = 'active'
+    `).run(now, agentAddress);
+
+    // Partial term badge if served 45+ days
+    if (daysServed >= 45) {
+      const updatedSeat = { ...seat, term_end: now };
+      this.createTermBadge(updatedSeat, false);
+      console.log(`[SEATS] Partial badge created for ${agentAddress} (${daysServed} days served)`);
+    } else {
+      console.log(`[SEATS] No badge for ${agentAddress} — only ${daysServed} days served (min 45)`);
+    }
+
+    // Clawback MPT seat token
+    if (this.mptSeats) {
+      this.mptSeats.revokeSeat(agentAddress).catch(err => {
+        console.error(`[SEATS] MPT clawback on departure failed for ${agentAddress}:`, err);
+      });
+    }
   }
 
   /**

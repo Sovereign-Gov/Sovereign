@@ -3,6 +3,8 @@ import { XrplWatcher } from './watchers/xrpl-watcher';
 import { SeatManager } from './governance/seats';
 import { ProposalManager } from './governance/proposals';
 import { MultiSignCoordinator } from './governance/multisign';
+import { MptSeatManager } from './governance/mpt-seats';
+import { BadgeManager } from './governance/badges';
 import { ForumManager } from './forum/manager';
 import { ForumStorage } from './forum/storage';
 import { KyaManager } from './identity/kya';
@@ -26,6 +28,8 @@ export class Sovereign {
   sybil!: SybilDetector;
   challenges: ChallengeManager;
   multisign!: MultiSignCoordinator;
+  mptSeats!: MptSeatManager;
+  badges!: BadgeManager;
 
   private server: Server | null = null;
   private intervals: NodeJS.Timeout[] = [];
@@ -55,6 +59,12 @@ export class Sovereign {
     const client = this.watcher.getClient();
     this.sybil = new SybilDetector(client);
     this.multisign = new MultiSignCoordinator(client);
+    this.mptSeats = new MptSeatManager(client);
+    this.badges = new BadgeManager(client);
+
+    // Wire MPT seats and badges into seat manager
+    this.seats.setMptSeatManager(this.mptSeats);
+    this.seats.setBadgeManager(this.badges);
 
     // Check constitutional ratification state
     this.checkConstitutionStatus();
@@ -66,6 +76,7 @@ export class Sovereign {
     this.wireForumEvents();
     this.wireVouchEvents();
     this.wireChallengeEvents();
+    this.wireBadgeEvents();
     this.wirePeriodicChecks();
     this.wireGovernanceOutcomes();
 
@@ -79,7 +90,8 @@ export class Sovereign {
       this.sybil,
       this.challenges,
       this.multisign,
-      this.watcher
+      this.watcher,
+      this.badges
     );
     this.server = app.listen(config.api.port, config.api.host, () => {
       console.log(`[API] Server running on http://${config.api.host}:${config.api.port}`);
@@ -393,6 +405,19 @@ export class Sovereign {
       }
     }, 30 * 60 * 1000);
     this.intervals.push(arweaveInterval);
+  }
+
+  private wireBadgeEvents(): void {
+    // Handle badge claim events from the watcher
+    this.watcher.on('claim_badge' as any, async (event: any) => {
+      try {
+        const { badgeId, txHash } = event.data;
+        const result = await this.badges.claimBadge(event.agent, badgeId, txHash);
+        console.log(`[BADGE] Claimed: badge #${badgeId} by ${event.agent} → NFT ${result.nftTokenId}`);
+      } catch (err) {
+        console.error(`[BADGE] Claim failed for ${event.agent}:`, err);
+      }
+    });
   }
 
   private wireGovernanceOutcomes(): void {

@@ -103,12 +103,58 @@
           </div>
 
           <div class="section" style="margin-top: 2rem;">
+            <h2 class="section-title">Badges</h2>
+            <div id="agent-badges">
+              <div class="loading">Loading badges...</div>
+            </div>
+          </div>
+
+          <div class="section" style="margin-top: 2rem;">
             <h2 class="section-title">Recent Activity</h2>
             <div class="card" id="agent-activity">
               <div class="loading">Loading activity...</div>
             </div>
           </div>
         `;
+
+        // Load badges
+        try {
+          const badgeRes = await fetch('/api/badges/' + address);
+          const badgeData = await badgeRes.json();
+          const badgeEl = document.getElementById('agent-badges');
+
+          const badgeTypeIcons = {
+            genesis: '🌟',
+            council: '🏛',
+            steward: '🛡',
+            arbiter: '⚖️',
+            special: '✨'
+          };
+
+          if (badgeData.badges && badgeData.badges.length > 0) {
+            badgeEl.innerHTML = '<div class="badge-grid">' + badgeData.badges.map(b => {
+              const meta = JSON.parse(b.metadata_json);
+              const icon = badgeTypeIcons[b.badge_type] || '🏅';
+              const claimed = b.claimed ? 'claimed' : 'unclaimed';
+              const claimIndicator = b.claimed
+                ? '<span class="badge badge-active" style="font-size:0.7rem;">Claimed</span>'
+                : '<span class="badge badge-pending" style="font-size:0.7rem;">Ready to claim</span>';
+              return `
+                <div class="card badge-card badge-${claimed}" style="text-align:center; padding:1.5rem;">
+                  <div style="font-size:2.5rem; margin-bottom:0.5rem;">${icon}</div>
+                  <div style="font-weight:600; color:var(--text-primary); margin-bottom:0.25rem;">${meta.collection || meta.type}</div>
+                  <div style="font-size:0.85rem; color:var(--text-secondary);">Term ${b.term_number} · ${meta.role || 'Member'}</div>
+                  <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">${meta.fullTerm ? 'Full Term' : 'Partial'} · ${meta.daysServed || '—'}d served</div>
+                  <div style="margin-top:0.75rem;">${claimIndicator}</div>
+                </div>
+              `;
+            }).join('') + '</div>';
+          } else {
+            badgeEl.innerHTML = '<div class="card"><div class="empty-state"><p>No badges earned yet.</p></div></div>';
+          }
+        } catch(e) {
+          document.getElementById('agent-badges').innerHTML = '<div class="card"><div class="empty-state"><p>Could not load badges.</p></div></div>';
+        }
 
         // Load activity
         const actRes = await fetch('/api/activity/' + address);

@@ -10,6 +10,7 @@ import { ForumStorage } from '../forum/storage';
 import { KyaManager } from '../identity/kya';
 import { SybilDetector } from '../identity/sybil';
 import { ChallengeManager } from '../identity/challenges';
+import { BadgeManager } from '../governance/badges';
 import { XrplWatcher } from '../watchers/xrpl-watcher';
 import { getDb } from '../db/database';
 import { dropsToXrp } from '../utils/xrpl-helpers';
@@ -23,7 +24,8 @@ export function createServer(
   sybilDetector: SybilDetector,
   challengeManager: ChallengeManager,
   multisignCoordinator: MultiSignCoordinator,
-  watcher: XrplWatcher
+  watcher: XrplWatcher,
+  badgeManager?: BadgeManager
 ) {
   const app = express();
   app.use(cors());
@@ -318,6 +320,47 @@ export function createServer(
       arbitersActive: activeSeats >= config.governance.arbiterActivationThreshold,
       timestamp: Date.now(),
     });
+  });
+
+  // === BADGES ===
+
+  app.get('/api/badges/:address', (req, res) => {
+    if (!badgeManager) return res.status(503).json({ error: 'Badge system not initialized' });
+    const badges = badgeManager.getAgentBadges(req.params.address);
+    res.json({ badges });
+  });
+
+  app.get('/api/badges/:address/claimable', (req, res) => {
+    if (!badgeManager) return res.status(503).json({ error: 'Badge system not initialized' });
+    const badges = badgeManager.getClaimableBadges(req.params.address);
+    res.json({ badges });
+  });
+
+  app.post('/api/badges/claim', async (req, res) => {
+    if (!badgeManager) return res.status(503).json({ error: 'Badge system not initialized' });
+    try {
+      const { badgeId, txHash } = req.body;
+      if (!badgeId || !txHash) {
+        return res.status(400).json({ error: 'badgeId and txHash are required' });
+      }
+
+      // Look up the badge to get the agent address
+      const badge = badgeManager.getBadge(badgeId);
+      if (!badge) return res.status(404).json({ error: 'Badge not found' });
+
+      const result = await badgeManager.claimBadge(badge.agent_address, badgeId, txHash);
+      res.json({ success: true, nftTokenId: result.nftTokenId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(400).json({ error: message });
+    }
+  });
+
+  app.get('/api/badges/metadata/:id', (req, res) => {
+    if (!badgeManager) return res.status(503).json({ error: 'Badge system not initialized' });
+    const badge = badgeManager.getBadge(parseInt(req.params.id, 10));
+    if (!badge) return res.status(404).json({ error: 'Badge not found' });
+    res.json(JSON.parse(badge.metadata_json));
   });
 
   // SPA fallback — serve index.html for unmatched routes

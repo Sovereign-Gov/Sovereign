@@ -662,3 +662,33 @@ tbody td:first-child { color: var(--text-primary); }
   .page-header h1 { font-size: 1.35rem; }
   .vote-tally { flex-direction: column; gap: 0.5rem; }
 }
+
+/* Badge Grid */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.badge-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid var(--border-color);
+}
+
+.badge-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.badge-card.badge-unclaimed {
+  border-color: var(--accent-primary);
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.08), transparent);
+}
+
+.badge-pending {
+  background: var(--accent-primary);
+  color: #fff;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  font-weight: 600;
+}

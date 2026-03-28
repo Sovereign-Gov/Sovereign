@@ -131,12 +131,45 @@ function initSchema(db: Database.Database): void {
       resolved_at INTEGER
     );
 
+    -- Badges (commemorative NFTs earned per term)
+    CREATE TABLE IF NOT EXISTS badges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_address TEXT NOT NULL,
+      badge_type TEXT NOT NULL,
+      term_number INTEGER NOT NULL,
+      metadata_json TEXT NOT NULL,
+      claimed INTEGER NOT NULL DEFAULT 0,
+      claim_tx_hash TEXT,
+      nft_token_id TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    );
+
+    -- Sovereign state (key-value store for config/state like MPT issuance IDs)
+    CREATE TABLE IF NOT EXISTS sovereign_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    -- Forum threads (referenced by forum manager)
+    CREATE TABLE IF NOT EXISTS forum_threads (
+      thread_id TEXT PRIMARY KEY,
+      author_address TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT,
+      linked_proposal_id TEXT,
+      post_count INTEGER DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      last_activity INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_heartbeats_agent ON heartbeats(agent_address, timestamp);
     CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity(agent_address, timestamp);
     CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
     CREATE INDEX IF NOT EXISTS idx_votes_proposal ON votes(proposal_id);
     CREATE INDEX IF NOT EXISTS idx_forum_thread ON forum_posts(thread_id, timestamp);
+    CREATE INDEX IF NOT EXISTS idx_badges_agent ON badges(agent_address);
+    CREATE INDEX IF NOT EXISTS idx_badges_unclaimed ON badges(agent_address, claimed);
   `);
 }
 
