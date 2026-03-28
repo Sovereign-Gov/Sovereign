@@ -105,11 +105,29 @@ export class XrplWatcher extends EventEmitter {
         });
         break;
 
+      case 'sovereign/seat_fee':
+        this.emit('seat_fee', {
+          agent: tx.Account,
+          data: JSON.parse(memoData),
+          txHash: tx.hash || tx.tx_json?.hash,
+          timestamp: this.rippleTimeToUnix(tx.date),
+        });
+        break;
+
+      case 'sovereign/seat_stake':
+        this.emit('seat_stake', {
+          agent: tx.Account,
+          data: JSON.parse(memoData),
+          txHash: tx.hash || tx.tx_json?.hash,
+          timestamp: this.rippleTimeToUnix(tx.date),
+        });
+        break;
+
       case 'sovereign/seat_claim':
         this.emit('seat_claim', {
           agent: tx.Account,
           data: JSON.parse(memoData),
-          txHash: tx.hash,
+          txHash: tx.hash || tx.tx_json?.hash,
           timestamp: this.rippleTimeToUnix(tx.date),
         });
         break;

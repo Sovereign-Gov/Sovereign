@@ -123,21 +123,39 @@ export class Sovereign {
   }
 
   private wireSeatEvents(): void {
+    // Seat fee payment (5 XRP → Treasury)
+    this.watcher.on('seat_fee', (event) => {
+      this.seats.recordSeatFee(event.agent, event.data, event.txHash, event.timestamp);
+    });
+
+    // Stake deposit (50 XRP → Stake Account)
+    this.watcher.on('seat_stake', (event) => {
+      this.seats.recordStakeDeposit(event.agent, event.data, event.txHash, event.timestamp);
+    });
+
+    // Seat claim confirmation (after both payments) — triggers final validation
     this.watcher.on('seat_claim', (event) => {
-      const result = this.seats.processSeatClaim({
-        agent: event.agent,
-        operatorId: event.data.operatorId,
-        name: event.data.name,
-        function: event.data.function,
-        goal: event.data.goal,
-        identity: event.data.identity,
-        txHash: event.txHash,
-        timestamp: event.timestamp,
-      });
-      if (result.success) {
-        console.log(`[SEAT] Granted to ${event.data.name} (${event.agent})`);
-      } else {
-        console.log(`[SEAT] Denied for ${event.agent}: ${result.reason}`);
+      // If both fee and stake already confirmed via the split payments,
+      // the seat was already granted in tryCompleteClaim.
+      // This handles the legacy single-payment flow as fallback.
+      if (!this.seats.agentHasSeat(event.agent)) {
+        const result = this.seats.processSeatClaim({
+          agent: event.agent,
+          operatorId: event.data.operatorId,
+          name: event.data.name,
+          function: event.data.function,
+          goal: event.data.goal,
+          identity: event.data.identity,
+          feeTxHash: event.data.feeTxHash || event.txHash,
+          stakeTxHash: event.data.stakeTxHash || event.txHash,
+          txHash: event.txHash,
+          timestamp: event.timestamp,
+        });
+        if (result.success) {
+          console.log(`[SEAT] Granted to ${event.data.name} (${event.agent})`);
+        } else {
+          console.log(`[SEAT] Denied for ${event.agent}: ${result.reason}`);
+        }
       }
     });
   }

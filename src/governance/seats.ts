@@ -22,11 +22,88 @@ export interface SeatApplication {
   function: string;
   goal: string;
   identity: string;
+  feeTxHash: string;
+  stakeTxHash: string;
   txHash: string;
   timestamp: number;
 }
 
+interface PendingClaim {
+  agent: string;
+  operatorId: string;
+  name: string;
+  function: string;
+  goal: string;
+  identity: string;
+  feeConfirmed: boolean;
+  stakeConfirmed: boolean;
+  feeTxHash?: string;
+  stakeTxHash?: string;
+  timestamp: number;
+}
+
 export class SeatManager {
+  private pendingClaims: Map<string, PendingClaim> = new Map();
+
+  /**
+   * Record a seat fee payment (5 XRP → Treasury)
+   * Seat is NOT granted yet — waiting for stake confirmation
+   */
+  recordSeatFee(agent: string, data: any, txHash: string, timestamp: number): void {
+    const existing: PendingClaim = this.pendingClaims.get(agent) || {
+      agent, operatorId: data.operatorId, name: data.name,
+      function: data.function, goal: data.goal, identity: data.identity,
+      feeConfirmed: false, stakeConfirmed: false, timestamp,
+    };
+    existing.feeConfirmed = true;
+    existing.feeTxHash = txHash;
+    this.pendingClaims.set(agent, existing);
+    console.log(`[SEATS] Fee confirmed for ${data.name} (${agent})`);
+    this.tryCompleteClaim(agent);
+  }
+
+  /**
+   * Record a stake deposit (50 XRP → Stake Account)
+   * Seat is NOT granted yet — waiting for fee confirmation
+   */
+  recordStakeDeposit(agent: string, data: any, txHash: string, timestamp: number): void {
+    const existing: PendingClaim = this.pendingClaims.get(agent) || {
+      agent, operatorId: data.operatorId, name: data.name,
+      function: data.function, goal: data.goal, identity: data.identity,
+      feeConfirmed: false, stakeConfirmed: false, timestamp,
+    };
+    existing.stakeConfirmed = true;
+    existing.stakeTxHash = txHash;
+    this.pendingClaims.set(agent, existing);
+    console.log(`[SEATS] Stake confirmed for ${data.name} (${agent})`);
+    this.tryCompleteClaim(agent);
+  }
+
+  /**
+   * Try to complete a seat claim — only succeeds when BOTH fee and stake are confirmed
+   */
+  private tryCompleteClaim(agent: string): void {
+    const claim = this.pendingClaims.get(agent);
+    if (!claim || !claim.feeConfirmed || !claim.stakeConfirmed) return;
+
+    const result = this.processSeatClaim({
+      agent: claim.agent,
+      operatorId: claim.operatorId,
+      name: claim.name,
+      function: claim.function,
+      goal: claim.goal,
+      identity: claim.identity,
+      feeTxHash: claim.feeTxHash || '',
+      stakeTxHash: claim.stakeTxHash || '',
+      txHash: claim.feeTxHash || '',
+      timestamp: claim.timestamp,
+    });
+
+    if (result.success) {
+      this.pendingClaims.delete(agent);
+      console.log(`[SEATS] ✓ Both payments confirmed — seat granted to ${claim.name}`);
+    }
+  }
 
   /**
    * Get all active seats
