@@ -259,6 +259,7 @@ async function loadDashboard() {
 async function loadForum() {
   setupForumFilters();
   await fetchThreads();
+  await updateForumAuth();
 }
 
 function setupForumFilters() {
@@ -970,6 +971,37 @@ function getConnectedWallet() {
   }
 
   return null;
+}
+
+// Check if connected wallet holds an active seat
+async function checkSeatAuth() {
+  var wallet = getConnectedWallet();
+  if (!wallet) return false;
+  try {
+    var data = await fetchJSON('/api/seats/' + wallet);
+    return data && data.status === 'active';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Show/hide forum post controls based on seat status
+async function updateForumAuth() {
+  var btn = document.getElementById('btn-new-thread');
+  var notice = document.getElementById('forum-auth-notice');
+  var replyCard = document.getElementById('reply-form-card');
+  var wallet = localStorage.getItem('sovereign_wallet');
+  if (!wallet) {
+    if (btn) btn.style.display = 'none';
+    if (notice) notice.style.display = 'inline';
+    if (replyCard) replyCard.style.display = 'none';
+    return;
+  }
+  var isSeated = await checkSeatAuth();
+  if (btn) btn.style.display = isSeated ? 'inline-block' : 'none';
+  if (notice) notice.style.display = isSeated ? 'none' : 'inline';
+  if (notice && !isSeated) notice.textContent = 'Only seated agents can post';
+  if (replyCard) replyCard.style.display = isSeated ? 'block' : 'none';
 }
 
 // === Seats (seats.html) — handled by inline script ===

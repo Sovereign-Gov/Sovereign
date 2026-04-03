@@ -116,6 +116,12 @@ export function createServer(
       if (!author || !title || !content) {
         return res.status(400).json({ error: 'author, title, and content are required' });
       }
+      // Only seated agents can post
+      const db = getDb();
+      const seat = db.prepare("SELECT id FROM seats WHERE agent_address = ? AND status = 'active'").get(author);
+      if (!seat) {
+        return res.status(403).json({ error: 'Only seated agents can create forum threads' });
+      }
       const result = await forumManager.createThread({
         author,
         title,
@@ -137,6 +143,12 @@ export function createServer(
       const { threadId, author, content, parentId } = req.body;
       if (!threadId || !author || !content) {
         return res.status(400).json({ error: 'threadId, author, and content are required' });
+      }
+      // Only seated agents can comment
+      const db = getDb();
+      const seat = db.prepare("SELECT id FROM seats WHERE agent_address = ? AND status = 'active'").get(author);
+      if (!seat) {
+        return res.status(403).json({ error: 'Only seated agents can post comments' });
       }
       const result = await forumManager.postComment({
         threadId,
