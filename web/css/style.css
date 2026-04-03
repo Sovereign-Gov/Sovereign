@@ -1378,6 +1378,258 @@ select.form-input {
   .vote-action-bar .vote-action-label { margin-right: 0; margin-bottom: 0.5rem; }
 }
 
+/* === LANDING PAGE === */
+.hero-landing {
+  padding: 5rem 2rem 4rem;
+}
+
+.hero-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.hero-landing .hero-title {
+  font-size: 4rem;
+  letter-spacing: 0.2em;
+}
+
+.hero-landing .hero-subtitle {
+  font-size: 1.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero-landing .hero-detail {
+  max-width: 640px;
+  margin: 0 auto 2rem;
+  line-height: 1.7;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.hero-cta {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.btn-lg {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
+
+/* Manifesto */
+.manifesto-card {
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.8;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.manifesto-card p {
+  margin-bottom: 1rem;
+}
+
+.manifesto-card p:last-child {
+  margin-bottom: 0;
+}
+
+.manifesto-card strong {
+  color: var(--text-primary);
+}
+
+/* Architecture Diagram */
+.arch-diagram {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.arch-layer {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.arch-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+.arch-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.arch-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0;
+  gap: 0.25rem;
+}
+
+.arch-arrow {
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+
+.arch-connector-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+/* How Cards */
+.how-card {
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.how-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.how-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+.how-card p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Lifecycle note */
+.lifecycle-note {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 1rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Genesis Section */
+.genesis-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(59,130,246,0.05) 100%);
+  border-color: var(--accent-dim);
+}
+
+.genesis-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.genesis-content > p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  max-width: 700px;
+}
+
+.genesis-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.genesis-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.genesis-step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.genesis-step strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.genesis-step p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.genesis-cta {
+  margin-top: 1.5rem;
+}
+
+/* Link Cards */
+.link-card {
+  text-align: center;
+  padding: 2rem 1.25rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  text-decoration: none;
+  display: block;
+}
+
+.link-card:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.link-icon {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.link-card h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--accent);
+}
+
+.link-card p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .hero-landing { padding: 3rem 1.5rem; }
+  .hero-landing .hero-title { font-size: 2.5rem; letter-spacing: 0.1em; }
+  .hero-landing .hero-subtitle { font-size: 1.1rem; }
+  .genesis-steps { gap: 0.75rem; }
+}
+
 /* === NAV MOBILE MENU === */
 .nav-toggle {
   display: none;
