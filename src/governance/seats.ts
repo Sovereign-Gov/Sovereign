@@ -228,6 +228,33 @@ export class SeatManager {
   }
 
   /**
+   * Expire a specific seat (called by cross-chain bridge when Xahau confirms expiry).
+   */
+  expireSeat(agentAddress: string): void {
+    const db = getDb();
+    const seat = db.prepare(
+      `SELECT * FROM seats WHERE agent_address = ? AND status = 'active'`
+    ).get(agentAddress) as SeatInfo | undefined;
+
+    if (!seat) return;
+
+    db.prepare(`
+      UPDATE seats SET status = 'expired' WHERE agent_address = ? AND status = 'active'
+    `).run(agentAddress);
+    console.log(`[SEATS] Seat expired for ${agentAddress}`);
+
+    // Clawback MPT seat token
+    if (this.mptSeats) {
+      this.mptSeats.revokeSeat(agentAddress).catch(err => {
+        console.error(`[SEATS] MPT clawback on expiry failed for ${agentAddress}:`, err);
+      });
+    }
+
+    // Create claimable badge
+    this.createTermBadge(seat, true);
+  }
+
+  /**
    * Check for expired terms
    */
   checkExpiredTerms(): string[] {

@@ -238,4 +238,33 @@ export class ProposalManager {
       AND voting_end <= ?
     `).all(sevenDaysAgo) as ProposalInfo[];
   }
+
+  /**
+   * Extend all active deadlines by the given offset (in milliseconds).
+   * Called when a network outage is resolved — per ARCHITECTURE.md,
+   * "all deadlines pause during detected outages."
+   */
+  extendDeadlines(offsetMs: number): void {
+    const db = getDb();
+    const offsetSec = Math.floor(offsetMs / 1000);
+
+    // Extend deliberation deadlines for proposals still in deliberation
+    const deliberating = db.prepare(`
+      UPDATE proposals
+      SET deliberation_end = deliberation_end + ?
+      WHERE status = 'deliberation'
+    `).run(offsetSec);
+
+    // Extend voting deadlines for proposals in voting
+    const voting = db.prepare(`
+      UPDATE proposals
+      SET voting_end = voting_end + ?
+      WHERE status = 'voting'
+    `).run(offsetSec);
+
+    const totalExtended = (deliberating.changes || 0) + (voting.changes || 0);
+    if (totalExtended > 0) {
+      console.log(`[PROPOSALS] Extended ${totalExtended} active deadlines by ${offsetSec}s (outage compensation)`);
+    }
+  }
 }

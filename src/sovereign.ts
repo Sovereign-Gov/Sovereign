@@ -1,5 +1,7 @@
 import { config } from './config';
 import { XrplWatcher } from './watchers/xrpl-watcher';
+import { XahauWatcher } from './watchers/xahau-watcher';
+import { CrossChainBridge, GovernanceEvent, ConsistencyReport } from './watchers/cross-chain-bridge';
 import { SeatManager } from './governance/seats';
 import { ProposalManager } from './governance/proposals';
 import { MultiSignCoordinator } from './governance/multisign';
@@ -20,6 +22,8 @@ import type { Server } from 'http';
  */
 export class Sovereign {
   watcher: XrplWatcher;
+  xahauWatcher: XahauWatcher;
+  bridge: CrossChainBridge;
   seats: SeatManager;
   proposals: ProposalManager;
   forum: ForumManager;
@@ -34,9 +38,13 @@ export class Sovereign {
   private server: Server | null = null;
   private intervals: NodeJS.Timeout[] = [];
   private constitutionRatified = false;
+  private deadlinesPaused = false;
+  private outageOffsetMs = 0;
 
   constructor() {
     this.watcher = new XrplWatcher();
+    this.xahauWatcher = new XahauWatcher();
+    this.bridge = new CrossChainBridge(this.watcher, this.xahauWatcher);
     this.seats = new SeatManager();
     this.proposals = new ProposalManager();
     this.storage = new ForumStorage();
@@ -50,11 +58,18 @@ export class Sovereign {
     console.log('='.repeat(60));
     console.log('  SOVEREIGN — Autonomous AI Agent Government');
     console.log(`  Network: ${config.xrpl.network}`);
+    console.log(`  Xahau:   ${config.xahau.wss || '(not configured)'}`);
     console.log(`  API: http://${config.api.host}:${config.api.port}`);
     console.log('='.repeat(60));
 
     // Connect XRPL first so we have the client
     await this.watcher.start();
+
+    // Connect Xahau watcher (graceful — continues without if not configured)
+    await this.xahauWatcher.start();
+
+    // Start cross-chain bridge
+    await this.bridge.start();
 
     const client = this.watcher.getClient();
     this.sybil = new SybilDetector(client);
@@ -79,6 +94,7 @@ export class Sovereign {
     this.wireBadgeEvents();
     this.wirePeriodicChecks();
     this.wireGovernanceOutcomes();
+    this.wireCrossChainEvents();
 
     // Start API server
     const app = createServer(
@@ -113,6 +129,12 @@ export class Sovereign {
     if (this.server) {
       await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     }
+
+    // Stop cross-chain bridge
+    await this.bridge.stop();
+
+    // Disconnect Xahau
+    await this.xahauWatcher.stop();
 
     // Disconnect XRPL
     await this.watcher.stop();
@@ -422,6 +444,174 @@ export class Sovereign {
 
   private wireGovernanceOutcomes(): void {
     // Nothing to wire here — outcomes are handled in check_deadlines above
+  }
+
+  /**
+   * Wire cross-chain bridge events into the governance managers.
+   *
+   * The bridge coordinates XRPL ↔ Xahau by:
+   * - Confirming XRPL actions via Xahau Hook state changes
+   * - Triggering XRPL-side actions when Xahau Hooks enforce state changes
+   * - Pausing/resuming deadlines during network outages
+   * - Reporting cross-chain state inconsistencies
+   */
+  private wireCrossChainEvents(): void {
+    // === Xahau → XRPL Actions ===
+
+    // When Xahau Hook revokes a seat, process on XRPL side
+    this.bridge.on('xrpl_action_required', async (action) => {
+      switch (action.action) {
+        case 'process_revocation': {
+          const agent = action.agentAddress;
+          console.log(`[BRIDGE→XRPL] Processing Hook-enforced revocation for ${agent}`);
+
+          // Revoke seat in local DB (if not already done by XRPL watcher)
+          if (this.seats.agentHasSeat(agent)) {
+            this.seats.revokeSeat(agent, 'xahau_hook_enforcement');
+            console.log(`[SEAT] Revoked by Xahau Hook: ${agent}`);
+          }
+
+          // Queue stake refund
+          try {
+            const quorum = Math.max(Math.ceil(this.seats.getActiveSeatCount() * 0.5), 2);
+            await this.multisign.createStakeRefund({
+              destination: agent,
+              amountDrops: config.governance.stakeAmountDrops,
+              reason: `Seat revoked by Xahau Hook`,
+              quorum,
+            });
+            console.log(`[MULTISIGN] Stake refund queued (Hook revocation): ${agent}`);
+          } catch (err) {
+            console.error(`[MULTISIGN] Failed to queue stake refund for ${agent}:`, err);
+          }
+          break;
+        }
+
+        case 'process_expiry': {
+          const agent = action.agentAddress;
+          console.log(`[BRIDGE→XRPL] Processing Hook-detected seat expiry for ${agent}`);
+
+          // Expire seat in local DB
+          if (this.seats.agentHasSeat(agent)) {
+            this.seats.expireSeat(agent);
+            console.log(`[SEAT] Expired (Xahau confirmed): ${agent}`);
+          }
+
+          // Queue stake refund (clean exit)
+          try {
+            const quorum = Math.max(Math.ceil(this.seats.getActiveSeatCount() * 0.5), 2);
+            await this.multisign.createStakeRefund({
+              destination: agent,
+              amountDrops: config.governance.stakeAmountDrops,
+              reason: `Term expired — clean exit`,
+              quorum,
+            });
+          } catch (err) {
+            console.error(`[MULTISIGN] Failed to queue stake refund for ${agent}:`, err);
+          }
+          break;
+        }
+
+        case 'signer_rotation': {
+          console.log(`[BRIDGE→XRPL] Signer rotation required by Xahau Hook`);
+          console.log(`[BRIDGE→XRPL] Deadline: ${action.deadline ? new Date(action.deadline * 1000).toISOString() : 'IMMEDIATE'}`);
+          // TODO: Trigger signer rotation via multisign coordinator
+          // when the election module is built. For now, log the alert.
+          break;
+        }
+
+        case 'accounts_frozen': {
+          console.log(`[BRIDGE→XRPL] Accounts frozen by Xahau: ${action.accounts.join(', ')}`);
+          // Log the frozen state — treasury operations on these accounts will fail
+          // until signer rotation is completed
+          break;
+        }
+      }
+    });
+
+    // === Cross-chain Confirmations ===
+
+    // Xahau confirms a seat was added in Hook state
+    this.bridge.on('gov:seat_confirmed', (event: GovernanceEvent) => {
+      console.log(`[BRIDGE] Seat confirmed on both chains: ${event.data.agentAddress}`);
+    });
+
+    // Xahau confirms a vote was Hook-validated
+    this.bridge.on('gov:vote_confirmed', (event: GovernanceEvent) => {
+      console.log(`[BRIDGE] Vote Hook-validated: ${event.data.agent} on ${event.data.proposalId}`);
+    });
+
+    // === Branch Activation ===
+
+    this.bridge.on('gov:stewards_activated', (event: GovernanceEvent) => {
+      console.log('[GOVERNANCE] 🏛️ Steward branch activated by Xahau Hook — elections begin');
+      // TODO: Trigger Steward election process when election module is built
+    });
+
+    this.bridge.on('gov:arbiters_activated', (event: GovernanceEvent) => {
+      console.log('[GOVERNANCE] ⚔️ Arbiter branch activated by Xahau Hook — selection begins');
+      // TODO: Trigger Arbiter selection process when election module is built
+    });
+
+    // === Constitution Ratification (Xahau-authoritative) ===
+
+    this.bridge.on('gov:constitution_ratified', (_event: GovernanceEvent) => {
+      if (!this.constitutionRatified) {
+        this.constitutionRatified = true;
+        console.log('[GOVERNANCE] ⚖️ Constitution ratified (confirmed by Xahau Hook) — FULL GOVERNANCE UNLOCKED');
+      }
+    });
+
+    // === Network Outage Handling ===
+    // Per ARCHITECTURE.md: "all deadlines pause during detected outages.
+    // No agent penalized for network downtime."
+
+    this.bridge.on('pause_deadlines', (event) => {
+      this.deadlinesPaused = true;
+      console.log(`[GOVERNANCE] ⏸️ All deadlines paused — ${event.reason}`);
+    });
+
+    this.bridge.on('resume_deadlines', (event) => {
+      this.deadlinesPaused = false;
+      this.outageOffsetMs += event.outageDurationMs;
+      console.log(`[GOVERNANCE] ▶️ Deadlines resumed — extending all active deadlines by ${Math.round(event.outageDurationMs / 1000)}s`);
+      // Extend all active proposal deadlines by the outage duration
+      this.proposals.extendDeadlines(event.outageDurationMs);
+    });
+
+    // === State Mismatch Alerts ===
+
+    this.bridge.on('consistency_report', (report: ConsistencyReport) => {
+      const critical = report.mismatches.filter(m => m.severity === 'critical');
+      if (critical.length > 0) {
+        console.error(`[BRIDGE] ❌ CRITICAL: ${critical.length} cross-chain state mismatches`);
+        for (const m of critical) {
+          console.error(`  - ${m.type}: ${m.details}`);
+        }
+      }
+    });
+
+    this.bridge.on('cross_chain_stale', (event) => {
+      console.warn(`[BRIDGE] Stale cross-chain operation: ${event.key} (${event.direction}, waiting ${Math.round(event.waitingMs / 1000)}s)`);
+    });
+
+    // === Unified Governance Event Log ===
+
+    this.bridge.on('governance_event', (event: GovernanceEvent) => {
+      // Store all cross-chain governance events for audit trail
+      try {
+        const db = getDb();
+        db.prepare(`
+          INSERT OR IGNORE INTO sovereign_state (key, value)
+          VALUES (?, ?)
+        `).run(
+          `event:${event.source}:${event.type}:${event.txHash || Date.now()}`,
+          JSON.stringify({ ...event, logged_at: Date.now() })
+        );
+      } catch {
+        // Non-critical — audit logging failure shouldn't crash governance
+      }
+    });
   }
 
   // === Governance Outcome Handlers ===

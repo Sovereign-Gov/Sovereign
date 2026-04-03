@@ -12,10 +12,13 @@ export const config = {
     businessAddress: process.env.XRPL_BUSINESS_ADDRESS || '',
   },
 
-  // Xahau (future)
+  // Xahau — Hooks chain for enforcement, seat registry, rule enforcement
   xahau: {
     wss: process.env.XAHAU_WSS || '',
     governanceAddress: process.env.XAHAU_GOVERNANCE_ADDRESS || '',
+    hookNamespace: process.env.XAHAU_HOOK_NAMESPACE || '',
+    pollIntervalMs: parseInt(process.env.XAHAU_POLL_INTERVAL_MS || '30000', 10),
+    deepAuditIntervalMs: parseInt(process.env.XAHAU_DEEP_AUDIT_INTERVAL_MS || '300000', 10),
   },
 
   // Forum storage

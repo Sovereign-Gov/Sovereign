@@ -4,3 +4,6 @@ data/
 .env
 *.db
 *.log
+build/
+data/
+*.db

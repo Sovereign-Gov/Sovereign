@@ -1,76 +1,49 @@
 /**
- * Xahau Hooks API Header (Stub for compilation reference)
- * 
- * This is a minimal header providing the Xahau Hooks API type definitions
- * and function declarations. For actual compilation, use the official
- * hook-api headers from: https://github.com/xahau/hooks-toolkit
+ * Hook API include file
  *
- * Reference: https://xrpl-hooks.readme.io/
+ * Note to the reader:
+ * This include defines two types of things: external functions and macros
+ * Functions are used sparingly because a non-inlining compiler may produce
+ * undesirable output.
+ *
+ * Find documentation here: https://xrpl-hooks.readme.io/reference/
  */
 
-#ifndef HOOKAPI_H
-#define HOOKAPI_H
+#ifndef HOOKAPI_INCLUDED
+#define HOOKAPI_INCLUDED 1
 
-#include <stdint.h>
+#define KEYLET_HOOK 1
+#define KEYLET_HOOK_STATE 2
+#define KEYLET_ACCOUNT 3
+#define KEYLET_AMENDMENTS 4
+#define KEYLET_CHILD 5
+#define KEYLET_SKIP 6
+#define KEYLET_FEES 7
+#define KEYLET_NEGATIVE_UNL 8
+#define KEYLET_LINE 9
+#define KEYLET_OFFER 10
+#define KEYLET_QUALITY 11
+#define KEYLET_EMITTED_DIR 12
+#define KEYLET_TICKET 13
+#define KEYLET_SIGNERS 14
+#define KEYLET_CHECK 15
+#define KEYLET_DEPOSIT_PREAUTH 16
+#define KEYLET_UNCHECKED 17
+#define KEYLET_OWNER_DIR 18
+#define KEYLET_PAGE 19
+#define KEYLET_ESCROW 20
+#define KEYLET_PAYCHAN 21
+#define KEYLET_EMITTED 22
+#define KEYLET_NFT_OFFER 23
+#define KEYLET_HOOK_DEFINITION 24
 
-// Buffer macros
-#define SBUF(x) (x), sizeof(x)
+#define COMPARE_EQUAL 1U
+#define COMPARE_LESS 2U
+#define COMPARE_GREATER 4U
 
-// Result macros
-#define DONE(msg) accept(msg, sizeof(msg), 0)
+#include "error.h"
+#include "extern.h"
+#include "sfcodes.h"
+#include "macro.h"
 
-// Amount conversion
-#define AMOUNT_TO_DROPS(buf) \
-    ((int64_t)((buf)[0]) | ((int64_t)((buf)[1]) << 8) | \
-     ((int64_t)((buf)[2]) << 16) | ((int64_t)((buf)[3]) << 24) | \
-     ((int64_t)((buf)[4]) << 32) | ((int64_t)((buf)[5]) << 40) | \
-     ((int64_t)((buf)[6]) << 48))
-
-// Serialization field codes
-#define sfAccount       0x00010001
-#define sfDestination   0x00010003
-#define sfAmount        0x00010004
-#define sfMemoType      0x00050001
-#define sfMemoData      0x00050002
-
-// Transaction types
-#define ttPAYMENT 0
-
-// === Hook API Functions ===
-
-// Accept the transaction (allow it through)
-extern int64_t accept(const char *msg, uint32_t msg_len, int64_t code);
-
-// Reject the transaction
-extern int64_t rollback(const char *msg, uint32_t msg_len, int64_t code);
-
-// Get the hook account's 20-byte account ID
-extern int64_t hook_account(uint8_t *buf, uint32_t buf_len);
-
-// Get the originating transaction type
-extern int64_t otxn_type(void);
-
-// Read a field from the originating transaction
-extern int64_t otxn_field(uint8_t *buf, uint32_t buf_len, uint32_t field_id);
-
-// Read hook state
-extern int64_t state(uint8_t *buf, uint32_t buf_len, 
-                     uint8_t *key, uint32_t key_len);
-
-// Write hook state
-extern int64_t state_set(uint8_t *buf, uint32_t buf_len,
-                         uint8_t *key, uint32_t key_len);
-
-// Read foreign hook state (from another hook on the same or different account)
-extern int64_t state_foreign(uint8_t *buf, uint32_t buf_len,
-                             uint8_t *key, uint32_t key_len,
-                             uint8_t *ns, uint32_t ns_len);
-
-// Get current ledger sequence number
-extern int64_t ledger_seq(void);
-
-// Trace/debug output (no-op in production)
-extern int64_t trace(const char *msg, uint32_t msg_len, 
-                     uint8_t *buf, uint32_t buf_len, int as_hex);
-
-#endif // HOOKAPI_H
+#endif

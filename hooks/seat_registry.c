@@ -3,115 +3,91 @@
  * Xahau Hook (C → WebAssembly)
  *
  * Manages the council seat lifecycle:
- *   - Seat claim: validates account age, fee + stake, no duplicates
- *   - Heartbeat: updates last_heartbeat timestamp
- *   - Activity: updates last_activity timestamp
+ *   - Seat claim (SEC): validates fee + stake, no duplicates
+ *   - Heartbeat (HBT): updates last_heartbeat timestamp
+ *   - Activity (ACT): updates last_activity timestamp
  *
- * State layout (key = 20-byte account ID):
- *   [0..3]   seat_id       (uint32_le)
- *   [4..11]  term_start    (int64_le, ledger sequence)
- *   [8..15]  term_end      (int64_le, ledger sequence)
+ * State layout (key = 20-byte account ID + 12 zero bytes):
+ *   [0..3]   seat_id       (uint32 big-endian)
+ *   [4..11]  term_start    (int64 big-endian, ledger sequence)
+ *   [8..15]  term_end      (int64 big-endian, ledger sequence)
  *   [16]     status        (0=inactive, 1=active, 2=evicted)
- *   [17..24] last_heartbeat(int64_le, ledger sequence)
- *   [25..32] last_activity (int64_le, ledger sequence)
+ *   [17..24] last_heartbeat(int64 big-endian, ledger sequence)
+ *   [25..32] last_activity (int64 big-endian, ledger sequence)
  *
- * Counter state (key = "seat_count\0..."):
- *   [0..3]   next_seat_id  (uint32_le)
- *   [4..7]   active_count  (uint32_le)
+ * Counter state (key = "CNT\0..."):
+ *   [0..3]   next_seat_id  (uint32 big-endian)
+ *   [4..7]   active_count  (uint32 big-endian)
  */
 
 #include "hookapi.h"
 
 #define SEAT_RECORD_SIZE 33
-#define COUNTER_KEY_SIZE 32
 
 // Drops constants
-#define FEE_DROPS      5000000LL    // 5 XRP
-#define STAKE_DROPS   50000000LL    // 50 XRP
 #define TOTAL_DROPS   55000000LL    // 5 + 50 XRP
-
-// Account age: ~30 days in ledger seqs (~3.5s per ledger)
-#define MIN_AGE_LEDGERS 740000
-
-// Memo type identifiers (first 4 bytes of memo type after hex decode)
-#define MEMO_SEAT_CLAIM  0x00534543  // "SEC" seat claim
-#define MEMO_HEARTBEAT   0x00484254  // "HBT" heartbeat
-#define MEMO_ACTIVITY    0x00414354  // "ACT" activity
 
 int64_t hook(uint32_t reserved)
 {
-    // Only trigger on incoming transactions
-    uint8_t tt_buf[4];
+    // Only trigger on payments
     int64_t tt = otxn_type();
-    if (tt != 0)  // ttPAYMENT = 0
-        DONE("seat_registry: not a payment, passing.");
+    if (tt != ttPAYMENT)
+        accept(SBUF("seat_registry: not a payment, passing."), 0);
 
     // Get the originating account
     uint8_t otxn_accid[20];
-    otxn_field(otxn_accid, 20, sfAccount);
+    otxn_field(SBUF(otxn_accid), sfAccount);
 
     // Get hook account
     uint8_t hook_accid[20];
-    hook_account(hook_accid, 20);
+    hook_account(SBUF(hook_accid));
 
     // Only process incoming transactions (destination = hook account)
     uint8_t dest_accid[20];
-    otxn_field(dest_accid, 20, sfDestination);
+    otxn_field(SBUF(dest_accid), sfDestination);
 
-    int is_incoming = 0;
-    for (int i = 0; i < 20; i++)
+    // Compare destination to hook account
+    int is_incoming = 1;
+    for (int i = 0; GUARD(20), i < 20; i++)
     {
         if (dest_accid[i] != hook_accid[i])
+        {
+            is_incoming = 0;
             break;
-        if (i == 19)
-            is_incoming = 1;
+        }
     }
 
     if (!is_incoming)
-        DONE("seat_registry: outgoing tx, passing.");
+        accept(SBUF("seat_registry: outgoing tx, passing."), 0);
 
     // Read memo type to determine action
     uint8_t memo_type[32];
-    int64_t memo_type_len = otxn_field(memo_type, 32, sfMemoType);
+    int64_t memo_type_len = otxn_field(SBUF(memo_type), sfMemoType);
     if (memo_type_len < 3)
-        DONE("seat_registry: no memo type, passing.");
+        accept(SBUF("seat_registry: no memo type, passing."), 0);
 
     // Build key from sender account
     uint8_t state_key[32];
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; GUARD(20), i < 20; i++)
         state_key[i] = otxn_accid[i];
-    for (int i = 20; i < 32; i++)
+    for (int i = 20; GUARD(12), i < 32; i++)
         state_key[i] = 0;
-
-    // Determine action from memo type
-    uint32_t memo_action = ((uint32_t)memo_type[0] << 16) |
-                           ((uint32_t)memo_type[1] << 8) |
-                           ((uint32_t)memo_type[2]);
 
     int64_t cur_seq = ledger_seq();
 
     // === HEARTBEAT ===
     if (memo_type[0] == 'H' && memo_type[1] == 'B' && memo_type[2] == 'T')
     {
-        // Read existing seat record
         uint8_t record[SEAT_RECORD_SIZE];
         int64_t r = state(SBUF(record), SBUF(state_key));
         if (r < 0)
-            rollback(SBUF("seat_registry: heartbeat — no seat found for this agent."), 10);
+            rollback(SBUF("seat_registry: heartbeat - no seat found."), 10);
 
-        // Check seat is active
         if (record[16] != 1)
-            rollback(SBUF("seat_registry: heartbeat — seat is not active."), 11);
+            rollback(SBUF("seat_registry: heartbeat - seat not active."), 11);
 
-        // Update last_heartbeat (bytes 17-24)
-        record[17] = (uint8_t)(cur_seq & 0xFF);
-        record[18] = (uint8_t)((cur_seq >> 8) & 0xFF);
-        record[19] = (uint8_t)((cur_seq >> 16) & 0xFF);
-        record[20] = (uint8_t)((cur_seq >> 24) & 0xFF);
-        record[21] = (uint8_t)((cur_seq >> 32) & 0xFF);
-        record[22] = (uint8_t)((cur_seq >> 40) & 0xFF);
-        record[23] = (uint8_t)((cur_seq >> 48) & 0xFF);
-        record[24] = (uint8_t)((cur_seq >> 56) & 0xFF);
+        // Update last_heartbeat (bytes 17-24) big-endian
+        UINT64_TO_BUF(record + 17, cur_seq);
 
         state_set(SBUF(record), SBUF(state_key));
         accept(SBUF("seat_registry: heartbeat recorded."), 0);
@@ -123,20 +99,13 @@ int64_t hook(uint32_t reserved)
         uint8_t record[SEAT_RECORD_SIZE];
         int64_t r = state(SBUF(record), SBUF(state_key));
         if (r < 0)
-            rollback(SBUF("seat_registry: activity — no seat found for this agent."), 20);
+            rollback(SBUF("seat_registry: activity - no seat found."), 20);
 
         if (record[16] != 1)
-            rollback(SBUF("seat_registry: activity — seat is not active."), 21);
+            rollback(SBUF("seat_registry: activity - seat not active."), 21);
 
-        // Update last_activity (bytes 25-32)
-        record[25] = (uint8_t)(cur_seq & 0xFF);
-        record[26] = (uint8_t)((cur_seq >> 8) & 0xFF);
-        record[27] = (uint8_t)((cur_seq >> 16) & 0xFF);
-        record[28] = (uint8_t)((cur_seq >> 24) & 0xFF);
-        record[29] = (uint8_t)((cur_seq >> 32) & 0xFF);
-        record[30] = (uint8_t)((cur_seq >> 40) & 0xFF);
-        record[31] = (uint8_t)((cur_seq >> 48) & 0xFF);
-        record[32] = (uint8_t)((cur_seq >> 56) & 0xFF);
+        // Update last_activity (bytes 25-32) big-endian
+        UINT64_TO_BUF(record + 25, cur_seq);
 
         state_set(SBUF(record), SBUF(state_key));
         accept(SBUF("seat_registry: activity recorded."), 0);
@@ -149,28 +118,19 @@ int64_t hook(uint32_t reserved)
         uint8_t existing[SEAT_RECORD_SIZE];
         int64_t r = state(SBUF(existing), SBUF(state_key));
         if (r >= 0 && existing[16] == 1)
-            rollback(SBUF("seat_registry: duplicate seat claim — agent already holds active seat."), 30);
+            rollback(SBUF("seat_registry: duplicate seat claim."), 30);
 
-        // Check payment amount (fee + stake = 55 XRP)
-        int64_t amt = otxn_field(0, 0, sfAmount);
-        // For XRP (non-IOU), amount is in drops in the field
+        // Check payment amount
         uint8_t amt_buf[8];
-        otxn_field(amt_buf, 8, sfAmount);
+        otxn_field(SBUF(amt_buf), sfAmount);
         int64_t drops = AMOUNT_TO_DROPS(amt_buf);
         if (drops < TOTAL_DROPS)
-            rollback(SBUF("seat_registry: insufficient payment. Need 55 XRP (5 fee + 50 stake)."), 31);
-
-        // Approximate account age check via ledger sequence
-        // We compare current ledger to the account sequence of first tx
-        // This is a rough proxy — production would use account_root
-        // For now, just enforce that the current ledger seq is high enough
-        // (meaning the network has been running long enough)
-        // A more precise check would read sfAccountSequence from the originating account
+            rollback(SBUF("seat_registry: insufficient payment."), 31);
 
         // Read counter state
         uint8_t counter_key[32];
         counter_key[0] = 'C'; counter_key[1] = 'N'; counter_key[2] = 'T';
-        for (int i = 3; i < 32; i++) counter_key[i] = 0;
+        for (int i = 3; GUARD(29), i < 32; i++) counter_key[i] = 0;
 
         uint8_t counter_buf[8];
         int64_t cr = state(SBUF(counter_buf), SBUF(counter_key));
@@ -179,45 +139,33 @@ int64_t hook(uint32_t reserved)
         uint32_t active_count = 0;
         if (cr >= 0)
         {
-            next_id = (uint32_t)counter_buf[0] | ((uint32_t)counter_buf[1] << 8) |
-                      ((uint32_t)counter_buf[2] << 16) | ((uint32_t)counter_buf[3] << 24);
-            active_count = (uint32_t)counter_buf[4] | ((uint32_t)counter_buf[5] << 8) |
-                           ((uint32_t)counter_buf[6] << 16) | ((uint32_t)counter_buf[7] << 24);
+            next_id = UINT32_FROM_BUF(counter_buf);
+            active_count = UINT32_FROM_BUF(counter_buf + 4);
         }
 
         // Build seat record
         uint8_t record[SEAT_RECORD_SIZE];
-        for (int i = 0; i < SEAT_RECORD_SIZE; i++) record[i] = 0;
+        for (int i = 0; GUARD(SEAT_RECORD_SIZE), i < SEAT_RECORD_SIZE; i++)
+            record[i] = 0;
 
-        // seat_id (bytes 0-3)
-        record[0] = (uint8_t)(next_id & 0xFF);
-        record[1] = (uint8_t)((next_id >> 8) & 0xFF);
-        record[2] = (uint8_t)((next_id >> 16) & 0xFF);
-        record[3] = (uint8_t)((next_id >> 24) & 0xFF);
+        // seat_id (bytes 0-3) big-endian
+        UINT32_TO_BUF(record, next_id);
 
-        // term_start (bytes 4-11)
-        record[4] = (uint8_t)(cur_seq & 0xFF);
-        record[5] = (uint8_t)((cur_seq >> 8) & 0xFF);
-        record[6] = (uint8_t)((cur_seq >> 16) & 0xFF);
-        record[7] = (uint8_t)((cur_seq >> 24) & 0xFF);
+        // term_start (bytes 4-11) big-endian
+        UINT64_TO_BUF(record + 4, cur_seq);
 
         // term_end = term_start + ~90 days in ledgers (~2.2M ledgers)
         int64_t term_end = cur_seq + 2220000;
-        record[8]  = (uint8_t)(term_end & 0xFF);
-        record[9]  = (uint8_t)((term_end >> 8) & 0xFF);
-        record[10] = (uint8_t)((term_end >> 16) & 0xFF);
-        record[11] = (uint8_t)((term_end >> 24) & 0xFF);
+        UINT64_TO_BUF(record + 8, term_end);
 
         // status = active
         record[16] = 1;
 
-        // last_heartbeat = now
-        record[17] = record[4]; record[18] = record[5];
-        record[19] = record[6]; record[20] = record[7];
+        // last_heartbeat = now (bytes 17-24)
+        UINT64_TO_BUF(record + 17, cur_seq);
 
-        // last_activity = now
-        record[25] = record[4]; record[26] = record[5];
-        record[27] = record[6]; record[28] = record[7];
+        // last_activity = now (bytes 25-32)
+        UINT64_TO_BUF(record + 25, cur_seq);
 
         // Save seat record
         state_set(SBUF(record), SBUF(state_key));
@@ -225,21 +173,16 @@ int64_t hook(uint32_t reserved)
         // Update counter
         next_id++;
         active_count++;
-        counter_buf[0] = (uint8_t)(next_id & 0xFF);
-        counter_buf[1] = (uint8_t)((next_id >> 8) & 0xFF);
-        counter_buf[2] = (uint8_t)((next_id >> 16) & 0xFF);
-        counter_buf[3] = (uint8_t)((next_id >> 24) & 0xFF);
-        counter_buf[4] = (uint8_t)(active_count & 0xFF);
-        counter_buf[5] = (uint8_t)((active_count >> 8) & 0xFF);
-        counter_buf[6] = (uint8_t)((active_count >> 16) & 0xFF);
-        counter_buf[7] = (uint8_t)((active_count >> 24) & 0xFF);
+        UINT32_TO_BUF(counter_buf, next_id);
+        UINT32_TO_BUF(counter_buf + 4, active_count);
         state_set(SBUF(counter_buf), SBUF(counter_key));
 
-        accept(SBUF("seat_registry: seat claimed successfully."), 0);
+        accept(SBUF("seat_registry: seat claimed."), 0);
     }
 
     // Not a recognized memo type — pass through
-    accept(SBUF("seat_registry: unrecognized memo type, passing."), 0);
+    accept(SBUF("seat_registry: unrecognized memo, passing."), 0);
+    return 0;
 }
 
 int64_t cbak(uint32_t reserved)
